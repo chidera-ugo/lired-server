@@ -13,6 +13,7 @@ async function main() {
 	await orm.getMigrator().up()
 
 	const app = express()
+
 	const server = new ApolloServer({
 		schema: await buildSchema({
 			resolvers: [PostResolver],
