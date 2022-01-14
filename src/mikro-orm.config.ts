@@ -1,15 +1,16 @@
 import { __prod__ } from "./utils/constants"
-import { Post } from "./entities/Post"
 import { MikroORM } from "@mikro-orm/core"
 import path from "path"
+import { Post } from "./entities/Post"
+import { User } from "./entities/User"
 
 export default {
-	entities: [Post],
+	entities: [Post, User],
 	migrations: {
 		path: path.join(__dirname, "./migrations"),
 		pattern: /^[\w-]+\d+\.[tj]s$/,
 	},
-	dbName: "test_reddit",
+	dbName: "reddit",
 	type: "postgresql",
 	user: "postgres",
 	password: process.env.DB_PASSWORD,
