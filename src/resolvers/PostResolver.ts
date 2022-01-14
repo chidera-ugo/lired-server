@@ -14,4 +14,12 @@ export class PostResolver {
 		const posts = await em.find(Post, {})
 		return posts
 	}
+
+  @Mutation(() => Post)
+  async post(
+    @
+    @Ctx() {em}: Context
+  ): Promise<Post> {
+    const post = em.findOne(Post, {})
+  }
 }
