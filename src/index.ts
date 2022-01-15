@@ -9,6 +9,7 @@ import { buildSchema } from "type-graphql"
 import { PostResolver } from "./resolvers/PostResolver"
 import { UserResolver } from "./resolvers/UserResolver"
 import cors from "cors"
+import cookieParser from "cookie-parser"
 
 async function main() {
 	const orm = await MikroORM.init(mikroConfig)
@@ -17,10 +18,11 @@ async function main() {
 	const app = express()
 	app.use(
 		cors({
-			origin: ["http://localhost:4000", "https://studio.apollographql.com"],
+			origin: ["http://localhost:3000", "https://studio.apollographql.com"],
 			credentials: true,
 		})
 	)
+	app.use(cookieParser())
 
 	const server = new ApolloServer({
 		schema: await buildSchema({

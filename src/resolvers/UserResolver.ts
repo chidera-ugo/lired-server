@@ -17,6 +17,13 @@ import {
 	sendRefreshToken,
 } from "../utils/tokens"
 import { verify, decode, JwtPayload } from "jsonwebtoken"
+import { EntityManager } from "@mikro-orm/postgresql"
+
+@ObjectType()
+class RefreshTokenResponse {
+	@Field()
+	accessToken!: string
+}
 
 @ObjectType()
 class FieldError {
@@ -32,8 +39,8 @@ class UserResponse {
 	@Field(() => User, { nullable: true })
 	user?: User
 
-	@Field(() => FieldError, { nullable: true })
-	errors?: FieldError
+	@Field(() => [FieldError], { nullable: true })
+	errors?: FieldError[]
 
 	@Field(() => String, { nullable: true })
 	accessToken?: string
@@ -59,45 +66,65 @@ export class UserResolver {
 
 		if (existingUser?.id) {
 			return {
-				errors: {
-					field: "username",
-					message: "Username is already taken",
-				},
+				errors: [
+					{
+						field: "username",
+						message: "Username is already taken",
+					},
+				],
 			}
 		}
 
 		if (username.length <= 5) {
 			return {
-				errors: {
-					field: "username",
-					message: "Username is too short",
-				},
+				errors: [
+					{
+						field: "username",
+						message: "Username is too short",
+					},
+				],
 			}
 		}
 
 		if (password.length <= 5) {
 			return {
-				errors: {
-					field: "password",
-					message: "Password is too short",
-				},
+				errors: [
+					{
+						field: "password",
+						message: "Password is too short",
+					},
+				],
 			}
 		}
 
 		try {
 			const hashedPassword = await argon2.hash(password)
-			const user = em.create(User, { username, password: hashedPassword })
-			await em.persistAndFlush(user)
+			// const user = em.create(User, { username, password: hashedPassword })
+			const result = await (em as EntityManager)
+				.createQueryBuilder(User)
+				.getKnexQuery()
+				.insert({
+					username,
+					password: hashedPassword,
+					created_at: new Date(),
+					updated_at: new Date(),
+				})
+				.returning("*")
+
+			const user = result[0]
+			// await em.persistAndFlush(user)
 			return {
 				user,
 			}
 		} catch (err) {
 			console.log(err)
 			return {
-				errors: {
-					field: "all",
-					message: "Error creating account",
-				},
+				errors: [
+					{
+						field: "all",
+						message: "Error creating account",
+					},
+				],
 			}
 		}
 	}
@@ -116,10 +143,12 @@ export class UserResolver {
 
 		if (!user) {
 			return {
-				errors: {
-					field: "username",
-					message: "User does not exist",
-				},
+				errors: [
+					{
+						field: "username",
+						message: "User does not exist",
+					},
+				],
 			}
 		}
 
@@ -128,10 +157,12 @@ export class UserResolver {
 
 			if (!validPassword) {
 				return {
-					errors: {
-						field: "all",
-						message: "Invalid email or password",
-					},
+					errors: [
+						{
+							field: "password",
+							message: "Invalid email or password",
+						},
+					],
 				}
 			}
 
@@ -144,10 +175,12 @@ export class UserResolver {
 		} catch (err) {
 			console.log(err)
 			return {
-				errors: {
-					field: "all",
-					message: "Failed to login",
-				},
+				errors: [
+					{
+						field: "all",
+						message: "Failed to login",
+					},
+				],
 			}
 		}
 	}
@@ -155,21 +188,61 @@ export class UserResolver {
 	@Query(() => User, { nullable: true })
 	async me(@Ctx() { em, req }: Context): Promise<User | null> {
 		const authorization = req.headers["authorization"]
-
 		const accessToken = authorization?.split(" ")[1]
-
 		if (!accessToken) {
 			return null
 		}
-
 		try {
 			const validToken = verify(accessToken, process.env.ACCESS_TOKEN_SECRET!)
 			if (!validToken) return null
 			const tokenPayload = decode(accessToken) as JwtPayload
 			return await em.findOne(User, { id: tokenPayload.userId })
 		} catch (err) {
-			console.log(err)
 			return null
 		}
+	}
+
+	@Mutation(() => RefreshTokenResponse)
+	async refreshToken(
+		@Ctx() { em, req, res }: Context
+	): Promise<RefreshTokenResponse> {
+		const refreshToken = req.cookies["kid"]
+
+		if (!refreshToken) {
+			return {
+				accessToken: "",
+			}
+		}
+
+		try {
+			const validToken = verify(refreshToken, process.env.REFRESH_TOKEN_SECRET!)
+			if (!validToken) {
+				return {
+					accessToken: "",
+				}
+			}
+			const payload = decode(refreshToken) as JwtPayload
+			const user = await em.findOne(User, { id: payload.userId })
+			if (!user) {
+				return {
+					accessToken: "",
+				}
+			}
+			sendRefreshToken(res, getRefreshToken(user))
+			return {
+				accessToken: getAccessToken(user),
+			}
+		} catch (err) {
+			console.log(err)
+			return {
+				accessToken: "",
+			}
+		}
+	}
+
+	@Mutation(() => Boolean)
+	logout(@Ctx() { res }: Context) {
+		res.clearCookie("kid")
+		return true
 	}
 }
