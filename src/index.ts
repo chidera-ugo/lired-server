@@ -18,7 +18,11 @@ async function main() {
 	const app = express()
 	app.use(
 		cors({
-			origin: ["http://localhost:3000", "https://studio.apollographql.com"],
+			origin: [
+				"http://localhost:3000",
+				"https://studio.apollographql.com",
+				"https://main.db5zxvzefvb6o.amplifyapp.com",
+			],
 			credentials: true,
 		})
 	)
