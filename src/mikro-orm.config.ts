@@ -14,5 +14,7 @@ export default {
 	type: "postgresql",
 	user: "postgres",
 	password: process.env.DB_PASSWORD,
+	clientUrl: "",
+	host: "",
 	debug: !__prod__,
 } as Parameters<typeof MikroORM.init>[0]
